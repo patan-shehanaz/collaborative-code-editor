@@ -1,6 +1,23 @@
+'use client';
+'use client';
+
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function JoinRoomPage() {
+  const [roomId, setRoomId] = useState("");
+  const [username, setUsername] = useState("");
+  const router = useRouter();
+
+  const handleJoinRoom = () => {
+  if (!roomId.trim()) return;
+
+  localStorage.setItem("username", username);
+
+  router.push(`/room/${roomId}`);
+};
+
   return (
     <main className="min-h-screen bg-black text-white">
       <div className="mx-auto flex min-h-screen max-w-2xl items-center justify-center px-6">
@@ -19,7 +36,9 @@ export default function JoinRoomPage() {
 
               <input
                 type="text"
-                placeholder="abc123xyz"
+                placeholder="room-f469xc"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 outline-none transition focus:border-blue-500"
               />
             </div>
@@ -32,11 +51,14 @@ export default function JoinRoomPage() {
               <input
                 type="text"
                 placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 outline-none transition focus:border-blue-500"
               />
             </div>
 
-            <button className="w-full rounded-xl bg-blue-600 py-3 font-medium transition hover:bg-blue-700">
+            <button onClick={handleJoinRoom}
+              className="w-full rounded-xl bg-blue-600 py-3 font-medium transition hover:bg-blue-700">
               Join Room
             </button>
 
