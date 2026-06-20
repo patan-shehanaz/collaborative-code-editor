@@ -1,5 +1,6 @@
 'use client';
 
+import { MonacoBinding } from 'y-monaco';
 import React, { useRef, useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import * as Y from 'yjs';
@@ -20,6 +21,13 @@ export default function EditorComponent({
 
     const ydoc = new Y.Doc();
     const ytext = ydoc.getText('monaco-text');
+
+    new MonacoBinding(
+  ytext,
+  editorRef.current.getModel(),
+  new Set([editorRef.current]),
+  null
+);
 
     ydoc.on('update', (update: Uint8Array) => {
       console.log(
