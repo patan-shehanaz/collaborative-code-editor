@@ -89,7 +89,12 @@ function initSocket(server) {
       const participantList = Array.from(room.participants.entries()).map(
         ([sid, name]) => ({ socketId: sid, username: name })
       );
+
+      console.log("Sending room-joined:", participantList);
       socket.emit('room-joined', { participants: participantList });
+      io.to(roomId).emit("participants-update", {
+        participants: participantList,
+      });
 
       // Notify others
       socket.to(roomId).emit('participant-joined', {
@@ -109,6 +114,7 @@ function initSocket(server) {
 
     // ── YJS UPDATE (client → server → other clients) ─────────────────────────
     socket.on('yjs-update', ({ roomId, update }) => {
+      console.log("🔥 RECEIVED YJS UPDATE", roomId);
       const room = rooms.get(roomId);
       if (!room) return;
 
@@ -140,7 +146,7 @@ function initSocket(server) {
       io.to(roomId).emit('language-changed', { language });
 
       // Persist to DB
-      Room.findOneAndUpdate({ roomId }, { language }).catch(() => {});
+      Room.findOneAndUpdate({ roomId }, { language }).catch(() => { });
     });
 
     // ── CURSOR POSITION ───────────────────────────────────────────────────────
