@@ -101,10 +101,11 @@ export default function EditorComponent({
   };
 
   useEffect(() => {
-    const savedUsername = localStorage.getItem("username");
+    const storedUser = localStorage.getItem("user");
 
-    if (savedUsername) {
-      setUsername(savedUsername);
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUsername(user.username);
     }
   }, []);
 
