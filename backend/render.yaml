@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: collab-editor-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: JUDGE0_API_URL
+        value: https://judge0-ce.p.rapidapi.com
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: JUDGE0_API_HOST
+        value: judge0-ce.p.rapidapi.com
