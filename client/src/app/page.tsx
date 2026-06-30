@@ -1,8 +1,60 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.reload();
+  };
+
   return (
     <main className="min-h-screen bg-black text-white">
+      <div className="flex justify-end gap-4 p-6">
+        {user ? (
+          <>
+            <span className="flex items-center text-zinc-300">
+              Hi, {user.username}
+            </span>
+
+            <button
+              onClick={handleLogout}
+              className="rounded-lg border border-zinc-700 px-4 py-2 transition hover:bg-zinc-900"
+            >
+              Sign Out
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/login"
+              className="rounded-lg border border-zinc-700 px-4 py-2 transition hover:bg-zinc-900"
+            >
+              Sign In
+            </Link>
+
+            <Link
+              href="/register"
+              className="rounded-lg bg-blue-600 px-4 py-2 transition hover:bg-blue-700"
+            >
+              Sign Up
+            </Link>
+          </>
+        )}
+      </div>
+
       <section className="mx-auto flex min-h-screen max-w-7xl flex-col items-center justify-center px-6 text-center">
         <div className="max-w-4xl">
           <span className="rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-400">

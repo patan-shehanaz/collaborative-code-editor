@@ -1,9 +1,13 @@
 'use client';
 
-import { MonacoBinding } from 'y-monaco';
+// import { MonacoBinding } from 'y-monaco';
+import { socket } from "@/lib/socket";
 import React, { useRef, useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import * as Y from 'yjs';
+
+
+
 
 
 export default function EditorComponent({
@@ -12,28 +16,41 @@ export default function EditorComponent({
   roomId: string;
 }) {
   const editorRef = useRef<any>(null);
+  const ydocRef = useRef<Y.Doc | null>(null);
   const [copied, setCopied] = useState(false);
   const [username, setUsername] = useState("");
   const [language, setLanguage] = useState("javascript");
+  const [output, setOutput] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [participants, setParticipants] = useState<
+    { socketId: string; username: string }[]
+  >([]);
 
-  function handleEditorDidMount(editor: any) {
+  async function handleEditorDidMount(editor: any) {
     editorRef.current = editor;
 
     const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
     const ytext = ydoc.getText('monaco-text');
+    const { MonacoBinding } = await import('y-monaco');
 
     new MonacoBinding(
-  ytext,
-  editorRef.current.getModel(),
-  new Set([editorRef.current]),
-  null
-);
+      ytext,
+      editorRef.current.getModel(),
+      new Set([editorRef.current]),
+      null
+    );
+
 
     ydoc.on('update', (update: Uint8Array) => {
       console.log(
         '📦 Encoded Binary CRDT Delta Packet Generated:',
         update
       );
+      socket.emit("yjs-update", {
+        roomId,
+        update: Array.from(update),
+      });
     });
   }
 
@@ -46,13 +63,153 @@ export default function EditorComponent({
       setCopied(false);
     }, 2000);
   };
+  const handleRun = async () => {
+    console.log("▶ Run clicked");
+    setIsRunning(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/execute",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            code: editorRef.current?.getValue(),
+            language: language,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      console.log("✅ Execute Response:", data);
+
+      setOutput(
+        data.stdout ||
+        data.stderr ||
+        data.compile_output ||
+        "No output"
+      );
+      setIsRunning(false);
+
+    } catch (error) {
+      console.error("❌ Execute Error:", error);
+      setIsRunning(false);
+    }
+  };
 
   useEffect(() => {
-    const savedUsername = localStorage.getItem("username");
+    const storedUser = localStorage.getItem("user");
 
-    if (savedUsername) {
-      setUsername(savedUsername);
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUsername(user.username);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!username) return;
+
+    socket.emit("join-room", {
+      roomId,
+      username,
+    });
+
+
+    console.log("Joining room:", roomId, username);
+  }, [roomId, username]);
+
+  useEffect(() => {
+    socket.on("connect", () => {
+      console.log("Connected:", socket.id);
+
+    });
+    return () => {
+      socket.off("connect");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("room-joined", (data) => {
+      setParticipants(data.participants);
+      console.log("Room joined:", data);
+    });
+
+    return () => {
+      socket.off("room-joined");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("participants-update", (data) => {
+      console.log("Participants updated:", data);
+
+      setParticipants(data.participants);
+    });
+
+    return () => {
+      socket.off("participants-update");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("participant-joined", (participant) => {
+      console.log("Participant joined:", participant);
+    });
+
+    return () => {
+      socket.off("participant-joined");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("language-changed", (data) => {
+      console.log("Language changed:", data);
+
+      setLanguage(data.language);
+    });
+
+
+
+    return () => {
+      socket.off("language-changed");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("yjs-update", ({ update }) => {
+      console.log("📥 Received YJS Update");
+
+      if (!ydocRef.current) return;
+
+      Y.applyUpdate(
+        ydocRef.current,
+        new Uint8Array(update)
+      );
+    });
+
+    return () => {
+      socket.off("yjs-update");
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("yjs-sync-step1", ({ update }) => {
+      console.log("📥 Initial YJS Sync");
+
+      if (!ydocRef.current) return;
+
+      Y.applyUpdate(
+        ydocRef.current,
+        new Uint8Array(update)
+      );
+    });
+
+    return () => {
+      socket.off("yjs-sync-step1");
+    };
   }, []);
 
   return (
@@ -137,7 +294,7 @@ export default function EditorComponent({
                 fontSize: "12px",
               }}
             >
-              1 online
+              {participants.length} online
             </div>
           </div>
         </div>
@@ -214,47 +371,49 @@ export default function EditorComponent({
             Participants
           </h3>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "12px",
-            }}
-          >
+          {participants.map((participant) => (
             <div
+              key={participant.socketId}
               style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "999px",
-                backgroundColor: "#2563eb",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                fontWeight: "bold",
+                gap: "10px",
+                marginBottom: "12px",
               }}
             >
-              {(username || "A")[0].toUpperCase()}
-            </div>
-
-            <div>
-              <div style={{ color: "#fff" }}>
-                {username || "Anonymous"}
-              </div>
-
               <div
                 style={{
-                  color: "#22c55e",
-                  fontSize: "12px",
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "999px",
+                  backgroundColor: "#2563eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontWeight: "bold",
                 }}
               >
-                Online
+                {participant.username[0].toUpperCase()}
+              </div>
+
+              <div>
+                <div style={{ color: "#fff" }}>
+                  {participant.username}
+                </div>
+
+                <div
+                  style={{
+                    color: "#22c55e",
+                    fontSize: "12px",
+                  }}
+                >
+                  Online
+                </div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
-
         {/* Editor */}
         <div
           style={{
@@ -277,7 +436,16 @@ export default function EditorComponent({
           >
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                const newLanguage = e.target.value;
+
+                setLanguage(newLanguage);
+
+                socket.emit("language-change", {
+                  roomId,
+                  language: newLanguage,
+                });
+              }}
               style={{
                 backgroundColor: "#27272a",
                 color: "white",
@@ -294,6 +462,8 @@ export default function EditorComponent({
             </select>
 
             <button
+              onClick={handleRun}
+              disabled={isRunning}
               style={{
                 backgroundColor: "#16a34a",
                 color: "white",
@@ -303,7 +473,7 @@ export default function EditorComponent({
                 cursor: "pointer",
               }}
             >
-              ▶ Run
+              {isRunning ? "Running..." : "▶ Run"}
             </button>
           </div>
 
@@ -314,6 +484,31 @@ export default function EditorComponent({
             defaultValue="// Your collaborative masterwork begins here..."
             onMount={handleEditorDidMount}
           />
+          <div
+            style={{
+              backgroundColor: "#111827",
+              color: "#d4d4d8",
+              padding: "12px",
+              borderTop: "1px solid #27272a",
+              minHeight: "120px",
+              maxHeight: "200px",
+              overflowY: "auto",
+              fontFamily: "monospace",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            <div
+              style={{
+                color: "#22c55e",
+                marginBottom: "8px",
+                fontWeight: "bold",
+              }}
+            >
+              Output
+            </div>
+
+            {output || "Run code to see output..."}
+          </div>
         </div>
       </div>
     </div>
